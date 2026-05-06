@@ -1,4 +1,4 @@
-name: Vanilla Build
+name: Samsung A73 Vanilla Kernel Build
 
 on:
   workflow_dispatch: 
@@ -24,24 +24,31 @@ jobs:
           libxml2-utils xsltproc libtinfo6 repo cpio kmod openssl libelf-dev \
           pahole libssl-dev libarchive-tools zstd rsync
           
+         
           wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
           sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb || sudo apt-get install -f -y
           rm libtinfo5_6.3-2ubuntu0.1_amd64.deb
 
-      - name: Fetch Toolchains (Clang & GCC)
+      - name: Fetch Toolchains (Clang & GCC 4.9)
         run: |
-          mkdir -p toolchain/gcc/linux-x86/aarch64
+          
+          mkdir -p toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           mkdir -p toolchain/llvm-arm-toolchain-ship/10.0
+          
+          echo "Cloning GCC 4.9..."
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
+          toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           
           echo "Downloading AOSP Clang r530567..."
           AOSPTC_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
           aria2c -x 16 -s 16 -o "clang.tar.gz" "$AOSPTC_URL"
           tar -xf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
           rm clang.tar.gz
-          
-          echo "Cloning GCC 4.9..."
-          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
-          toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+
+      - name: Debug Path (Check if Linker exists)
+        run: |
+          echo "Checking Linker path..."
+          ls -l toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-ld
 
       - name: Build Kernel
         run: |

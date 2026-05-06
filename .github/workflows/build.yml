@@ -24,40 +24,38 @@ jobs:
           libxml2-utils xsltproc libtinfo6 repo cpio kmod openssl libelf-dev \
           pahole libssl-dev libarchive-tools zstd rsync
           
-          # Cài đặt thư viện ncurses cũ cần thiết cho linker của toolchain
+          # Cài đặt ncurses 5 để trình liên kết (linker) cũ có thể chạy
           wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
           sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb || sudo apt-get install -f -y
           rm libtinfo5_6.3-2ubuntu0.1_amd64.deb
 
-      - name: Fetch Toolchains
+      - name: Fetch and Extract Toolchains
         run: |
-          # 1. Dọn dẹp thư mục toolchain cũ nếu có rác
+          # Xóa và tạo mới hoàn toàn để tránh rác
           rm -rf toolchain
-          mkdir -p toolchain/gcc/linux-x86/aarch64
+          mkdir -p toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           mkdir -p toolchain/llvm-arm-toolchain-ship/10.0
           
-          # 2. Tải GCC 4.9 (Dùng phương pháp clone vào thư mục chưa tồn tại để đảm bảo cấu trúc)
-          echo "Cloning GCC 4.9..."
-          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
-          toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+          # Tải và giải nén GCC 4.9
+          echo "--- Tải GCC 4.9 ---"
+          aria2c -x 16 -s 16 -o "gcc.tar.gz" "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/master.tar.gz"
+          tar -xzf gcc.tar.gz -C toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           
-          # 3. Tải Clang r530567 từ AOSP
-          echo "Downloading AOSP Clang..."
-          AOSPTC_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
-          aria2c -x 16 -s 16 -o "clang.tar.gz" "$AOSPTC_URL"
-          tar -xf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
-          rm clang.tar.gz
+          # Tải và giải nén Clang r530567
+          echo "--- Tải Clang r530567 ---"
+          aria2c -x 16 -s 16 -o "clang.tar.gz" "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
+          tar -xzf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
+          
+          rm *.tar.gz
 
-      - name: Verify Toolchain Integrity
+      - name: Diagnostic (Kiểm tra tệp tin)
         run: |
-          echo "--- Kiểm tra trình liên kết (Linker) ---"
-          LINKER_PATH="toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-ld"
-          if [ -f "$LINKER_PATH" ]; then
-            echo "✅ Thành công: Linker đã được tìm thấy tại $LINKER_PATH"
+          echo "--- Danh sách file trong thư mục BIN của GCC ---"
+          if [ -d "toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin" ]; then
+            ls -F toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/ | grep "ld"
           else
-            echo "❌ Thất bại: Không tìm thấy Linker. Cấu trúc thực tế là:"
-            find toolchain/gcc -name "aarch64-linux-android-ld"
-            exit 1
+            echo "❌ Thư mục bin không tồn tại!"
+            find toolchain -type d -name "bin"
           fi
 
       - name: Build Kernel

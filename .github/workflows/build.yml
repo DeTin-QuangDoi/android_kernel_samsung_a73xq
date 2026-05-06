@@ -1,13 +1,17 @@
-name: Samsung A73 Optimized Build
+name: Samsung A73 Vanilla Build
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: 
+  push:
+    branches: [ main, master ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Lùi về bản 22.04 để tăng độ tương thích với toolchain cũ
+    runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout Source
+      - name: Checkout Kernel Source
         uses: actions/checkout@v4
 
       - name: Free Disk Space
@@ -16,28 +20,53 @@ jobs:
           remove_android: true
           remove_tool_cache: true
 
-      - name: Install Deps
+      - name: Install Build Dependencies
         run: |
           sudo apt update
-          sudo apt install -y bc build-essential libssl-dev libelf-dev clang lld llvm libtinfo5
+          sudo apt install -y bc build-essential flex bison libssl-dev libelf-dev \
+          ccache libncurses-dev python3 git-lfs aria2
+          
+          # Cài đặt libtinfo5 để đảm bảo Linker 4.9 có thể chạy (bản 22.04 đôi khi vẫn cần bước này)
+          wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
+          sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb || sudo apt-get install -f -y
 
-      - name: Fetch Legacy Toolchain
+      - name: Fetch Toolchains (Stable Mirror)
         run: |
+          rm -rf toolchain
           mkdir -p toolchain/gcc/linux-x86/aarch64
           mkdir -p toolchain/llvm-arm-toolchain-ship/10.0
-           
+          
+          # Sử dụng Mirror LineageOS để tránh lỗi tải file rỗng 227 bytes
+          echo "--- Cloning GCC 4.9 ---"
           git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 -b lineage-18.1 \
           toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           
-          aria2c -x 16 -s 16 -o "clang.tar.gz" "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r353983c.tar.gz"
+          # Tải Clang r530567 (hoặc bản bạn đang dùng)
+          echo "--- Downloading Clang ---"
+          AOSPTC_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
+          aria2c -x 16 -s 16 -o "clang.tar.gz" "$AOSPTC_URL"
           tar -xf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
           rm clang.tar.gz
 
-      - name: Build
+      - name: Final Path Verification
+        run: |
+          echo "--- Checking Linker Presence ---"
+          ls -l toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-ld
+
+      - name: Build Kernel
         run: |
           chmod +x build_kernel.sh
           ./build_kernel.sh
         env:
           KBUILD_BUILD_USER: "Lixin"
           KBUILD_BUILD_HOST: "GitHub-Actions"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vanilla-Kernel-A73
+          path: |
+            out/arch/arm64/boot/Image
+            out/arch/arm64/boot/dts/samsung/*.dtb
+            out/arch/arm64/boot/dtbo.img
 

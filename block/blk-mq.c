@@ -650,10 +650,12 @@ static void __blk_mq_complete_request(struct request *rq)
 		shared = cpus_share_cache(cpu, ctx->cpu);
 
 	if (cpu != ctx->cpu && !shared && cpu_online(ctx->cpu)) {
-		rq->csd.func = __blk_mq_complete_request_remote;
-		rq->csd.info = rq;
-		rq->csd.flags = 0;
-		smp_call_function_single_async(ctx->cpu, &rq->csd);
+		struct __call_single_data csd_local __aligned(32);
+
+		csd_local.func = __blk_mq_complete_request_remote;
+		csd_local.info = rq;
+		csd_local.flags = 0;
+		smp_call_function_single_async(ctx->cpu, &csd_local);
 	} else {
 		q->mq_ops->complete(rq);
 	}

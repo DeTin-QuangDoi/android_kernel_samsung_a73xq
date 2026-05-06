@@ -13,25 +13,35 @@ jobs:
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
 
-      - name: Install Build Dependencies
+      - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev \
-          ccache libncurses-dev python3 git-lfs gcc-aarch64-linux-gnu clang lld llvm
+          sudo apt update
+          sudo apt install -y git aria2 device-tree-compiler lz4 xz-utils zlib1g-dev \
+          openjdk-17-jdk gcc g++ python3 python-is-python3 p7zip-full \
+          android-sdk-libsparse-utils erofs-utils default-jdk gnupg flex bison \
+          gperf build-essential zip curl libc6-dev libncurses-dev libx11-dev \
+          libreadline-dev libgl1 libgl1-mesa-dev make bc grep tofrodos \
+          libxml2-utils xsltproc libtinfo6 repo cpio kmod openssl libelf-dev \
+          pahole libssl-dev libarchive-tools zstd rsync
+          
+          wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
+          sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb || sudo apt-get install -f -y
+          rm libtinfo5_6.3-2ubuntu0.1_amd64.deb
 
-      - name: Setup Toolchain Symlinks
+      - name: Fetch Toolchains (Clang & GCC)
         run: |
-          # Tạo cấu trúc thư mục mà build_kernel.sh yêu cầu
-          mkdir -p toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin
-          mkdir -p toolchain/llvm-arm-toolchain-ship/10.0/bin
+          mkdir -p toolchain/gcc/linux-x86/aarch64
+          mkdir -p toolchain/llvm-arm-toolchain-ship/10.0
           
-          # Liên kết GCC từ hệ thống vào đường dẫn script mong đợi
-          ln -s /usr/bin/aarch64-linux-gnu-gcc toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-gcc
-          ln -s /usr/bin/aarch64-linux-gnu-ld toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-ld
-          ln -s /usr/bin/aarch64-linux-gnu-objcopy toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-objcopy
+          echo "Downloading AOSP Clang r530567..."
+          AOSPTC_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
+          aria2c -x 16 -s 16 -o "clang.tar.gz" "$AOSPTC_URL"
+          tar -xf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
+          rm clang.tar.gz
           
-          # Liên kết Clang
-          ln -s /usr/bin/clang toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
+          echo "Cloning GCC 4.9..."
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
+          toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
 
       - name: Build Kernel
         run: |
@@ -41,10 +51,10 @@ jobs:
           KBUILD_BUILD_USER: "Lixin"
           KBUILD_BUILD_HOST: "GitHub-Actions"
 
-      - name: Upload Build Artifacts
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Samsung-A73-Kernel-Files
+          name: Vanilla-Kernel-A73
           path: |
             out/arch/arm64/boot/Image
             out/arch/arm64/boot/dts/samsung/*.dtb

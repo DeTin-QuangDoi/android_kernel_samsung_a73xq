@@ -1,77 +1,43 @@
-name: Samsung A73 Vanilla Kernel Build
+name: Samsung A73 Optimized Build
 
 on:
-  workflow_dispatch: 
-  push:
-    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Kernel Source
+      - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Free Disk Space
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: true
+          remove_tool_cache: true
+
+      - name: Install Deps
         run: |
           sudo apt update
-          sudo apt install -y git aria2 device-tree-compiler lz4 xz-utils zlib1g-dev \
-          openjdk-17-jdk gcc g++ python3 python-is-python3 p7zip-full \
-          android-sdk-libsparse-utils erofs-utils default-jdk gnupg flex bison \
-          gperf build-essential zip curl libc6-dev libncurses-dev libx11-dev \
-          libreadline-dev libgl1 libgl1-mesa-dev make bc grep tofrodos \
-          libxml2-utils xsltproc libtinfo6 repo cpio kmod openssl libelf-dev \
-          pahole libssl-dev libarchive-tools zstd rsync
-          
-          # Cài đặt ncurses 5 để trình liên kết (linker) cũ có thể chạy
-          wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
-          sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb || sudo apt-get install -f -y
-          rm libtinfo5_6.3-2ubuntu0.1_amd64.deb
+          sudo apt install -y bc build-essential libssl-dev libelf-dev clang lld llvm libtinfo5
 
-      - name: Fetch and Extract Toolchains
+      - name: Fetch Legacy Toolchain
         run: |
-          # Xóa và tạo mới hoàn toàn để tránh rác
-          rm -rf toolchain
-          mkdir -p toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+          mkdir -p toolchain/gcc/linux-x86/aarch64
           mkdir -p toolchain/llvm-arm-toolchain-ship/10.0
+           
+          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 -b lineage-18.1 \
+          toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           
-          # Tải và giải nén GCC 4.9
-          echo "--- Tải GCC 4.9 ---"
-          aria2c -x 16 -s 16 -o "gcc.tar.gz" "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/master.tar.gz"
-          tar -xzf gcc.tar.gz -C toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
-          
-          # Tải và giải nén Clang r530567
-          echo "--- Tải Clang r530567 ---"
-          aria2c -x 16 -s 16 -o "clang.tar.gz" "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
-          tar -xzf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
-          
-          rm *.tar.gz
+          aria2c -x 16 -s 16 -o "clang.tar.gz" "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r353983c.tar.gz"
+          tar -xf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
+          rm clang.tar.gz
 
-      - name: Diagnostic (Kiểm tra tệp tin)
-        run: |
-          echo "--- Danh sách file trong thư mục BIN của GCC ---"
-          if [ -d "toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin" ]; then
-            ls -F toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/ | grep "ld"
-          else
-            echo "❌ Thư mục bin không tồn tại!"
-            find toolchain -type d -name "bin"
-          fi
-
-      - name: Build Kernel
+      - name: Build
         run: |
           chmod +x build_kernel.sh
           ./build_kernel.sh
         env:
           KBUILD_BUILD_USER: "Lixin"
           KBUILD_BUILD_HOST: "GitHub-Actions"
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Vanilla-Kernel-A73
-          path: |
-            out/arch/arm64/boot/Image
-            out/arch/arm64/boot/dts/samsung/*.dtb
-            out/arch/arm64/boot/dtbo.img
 

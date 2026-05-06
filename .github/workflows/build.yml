@@ -24,31 +24,41 @@ jobs:
           libxml2-utils xsltproc libtinfo6 repo cpio kmod openssl libelf-dev \
           pahole libssl-dev libarchive-tools zstd rsync
           
-         
+          # Cài đặt thư viện ncurses cũ cần thiết cho linker của toolchain
           wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
           sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb || sudo apt-get install -f -y
           rm libtinfo5_6.3-2ubuntu0.1_amd64.deb
 
-      - name: Fetch Toolchains (Clang & GCC 4.9)
+      - name: Fetch Toolchains
         run: |
-          
-          mkdir -p toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+          # 1. Dọn dẹp thư mục toolchain cũ nếu có rác
+          rm -rf toolchain
+          mkdir -p toolchain/gcc/linux-x86/aarch64
           mkdir -p toolchain/llvm-arm-toolchain-ship/10.0
           
+          # 2. Tải GCC 4.9 (Dùng phương pháp clone vào thư mục chưa tồn tại để đảm bảo cấu trúc)
           echo "Cloning GCC 4.9..."
           git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
           toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
           
-          echo "Downloading AOSP Clang r530567..."
+          # 3. Tải Clang r530567 từ AOSP
+          echo "Downloading AOSP Clang..."
           AOSPTC_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
           aria2c -x 16 -s 16 -o "clang.tar.gz" "$AOSPTC_URL"
           tar -xf clang.tar.gz -C toolchain/llvm-arm-toolchain-ship/10.0
           rm clang.tar.gz
 
-      - name: Debug Path (Check if Linker exists)
+      - name: Verify Toolchain Integrity
         run: |
-          echo "Checking Linker path..."
-          ls -l toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-ld
+          echo "--- Kiểm tra trình liên kết (Linker) ---"
+          LINKER_PATH="toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-ld"
+          if [ -f "$LINKER_PATH" ]; then
+            echo "✅ Thành công: Linker đã được tìm thấy tại $LINKER_PATH"
+          else
+            echo "❌ Thất bại: Không tìm thấy Linker. Cấu trúc thực tế là:"
+            find toolchain/gcc -name "aarch64-linux-android-ld"
+            exit 1
+          fi
 
       - name: Build Kernel
         run: |

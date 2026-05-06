@@ -246,7 +246,7 @@ struct request {
 	union {
 		struct __call_single_data csd;
 		u64 fifo_time;
-	};
+	} __aligned(32);
 
 	/*
 	 * completion callback.

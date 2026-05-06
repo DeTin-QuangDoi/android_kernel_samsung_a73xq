@@ -1,0 +1,61 @@
+name: Vanilla Build
+
+on:
+  workflow_dispatch: 
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev \
+          ccache libncurses-dev python3-pip git-lfs
+
+      - name: Setup Toolchain Directory
+        run: mkdir -p toolchain
+
+      - name: Clone GCC 4.9 Toolchain
+        run: |
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
+          toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+
+      - name: Clone Clang Toolchain
+        run: |
+          mkdir -p toolchain/llvm-arm-toolchain-ship
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+          -b clang-r353983c toolchain/llvm-arm-toolchain-ship/10.0
+
+      - name: Build Kernel
+        run: |
+          chmod +x build_kernel.sh
+          ./build_kernel.sh
+        env:
+          KBUILD_BUILD_USER: "Lixin"
+          KBUILD_BUILD_HOST: "GitHub-Actions"
+
+      - name: Upload Kernel Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-Image-A73
+          path: out/arch/arm64/boot/Image
+
+      - name: Upload DTB Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: DTB-Files-A73
+          path: out/arch/arm64/boot/dts/samsung/*.dtb
+
+      - name: Upload DTBO Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: DTBO-Image-A73
+          path: out/arch/arm64/boot/dtbo.img
+

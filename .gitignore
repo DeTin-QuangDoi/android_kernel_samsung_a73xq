@@ -1,0 +1,8 @@
+out/
+toolchain/
+*.o
+*.ko
+*.so
+*.a
+.config
+.config.old
